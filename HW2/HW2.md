@@ -75,7 +75,7 @@ sudo perf mem record ./your_program
 sudo perf mem report
 ```
 
-## 2、Perf实战
+## 2、实践
 作业2要求对isort进行性能瓶颈定位，接下来，将通过两步来找到isort中的性能瓶颈，作业提供的isort核心算法源码如下：
 ```C
 /* Insertion sort */
@@ -109,7 +109,7 @@ void isort(data_t* left, data_t* right) {
 #### 2.1.4 小结
 从上述数据可以看出，在机器的执行效率上，已经没有可以进一步优化的地方，因此该程序真正的瓶颈就在算法上。
 
-#### 2.2 算法性能瓶颈定位
+### 2.2 算法性能瓶颈定位
 从算法这个角度去定位性能瓶颈，其实就是看看算法中，哪一行代码的执行成本最高，然后看看能不能通过优化，将整体执行的指令数下降，同时还需要保证CPU执行效率等宏观性能特征不要变糟糕。
 执行指令`sudo perf annotate --stdio -s isort`获得性能数据，并将结果显示在终端上，核心耗时程序段如下图所示：
 ![[截屏2026-03-15 20.33.31.png|400]]
@@ -301,10 +301,11 @@ substitute for time when you compare the performance of different versions of th
 用指令数代替运行时间的优缺点：
 - 优点：指令数能够直接反馈编译器/代码优化的效果，不受缓存命中、分支预测等“硬件特性”影响，能够单纯衡量"代码逻辑的复杂度"。
 - 缺点：缓存失效次数、指令类型都会影响程序性能，单单从指令数来衡量性能，角度过于单一。
-#### 3.5.2 Write-up 2
+#### 3.5.2 Inline
 ```
-Write-up 2: Explain which functions you chose to inline and report the performance
-differences you observed between the inlined and uninlined sorting routines.
+Write-up 2: Explain which functions you chose to inline and report the performance differences you observed between the inlined and uninlined sorting routines.
+
+Write-up 3: Explain the possible performance downsides of inlining recursive functions. How could profiling data gathered using cachegrind help you measure these negative performance effects?
 ```
 在完成这个Write-up的时候，感觉使用clang的效果并不是特别好，一个是添加inline前后的预期时间差距很小，另一个是对递归函数的支持并不太好，所以在这个Write-up，我全部使用GCC来作为编译器。
 编译命令：`gcc main.c tests.c util.c isort.c sort_a.c sort_c.c sort_i.c sort_p.c sort_m.c sort_f.c -O3 -DNDEBUG -g -Wall -std=gnu99 -gdwarf-3 --param max-inline-insns-recursive=450 -lrt -lm  -o sort`
@@ -337,9 +338,85 @@ differences you observed between the inlined and uninlined sorting routines.
 5、第五次尝试，指令数减少了10%，时间减少了3.2%。
 6、第六次尝试，指令数减少了10%，但是时间减少了5%。
 
-结论：
+- 结论：
 (1) 在目前的尝试中，第六次的优化尝试，时间减少的最多，但是指令却并不是最少的，由此可见，并不是内联的程度越高，性能越好，内联的程度越高，会导致可执行文件的指令数膨胀，进而增加指令缓存的失效次数，最终导致性能反而会有损失。
 (2) inline关键字，只是程序员给编译器的建议，编译器并不一定会采用，如果需要强制某个函数内联化，可以使用`__attribute__((always_inline))`关键字。
 (3) 每次优化尝试，都需要确认编译器按照我们的想法进行了内联，不然就会出现第一次优化尝试一样的结果，由于我对编译器的行为并不熟悉，所以我借助了[[https://godbolt.org]]该网站来帮助验证。
 
+#### 3.5.3 Pointers vs Arrays
+```
+Write-up 4: Give a reason why using pointers may improve performance. Report on any performance differences you observed in your implementation.
+```
 
+这节是想让我们从数组访问方式的角度进行优化，代码中原始的访问数组的方式是这样：
+`source[i] = dest[i]`，我们改成如下方式：
+```C
+data_t* tmp_source = source;
+data_t* tmp_dest = dest;
+
+for (int i = 0 ; i < n ; i++) {
+	*tmp_dest = *tmp_source;
+	tmp_source++;
+	tmp_dest++;
+}
+```
+把算法中涉及的所有数组访问都修改后的性能结果如下：
+![[截屏2026-03-27 20.31.23.png]]
+- 分析：
+(1) 从结果看，相比修改之前，指令数减少了5%，时间减少了8%，可见优化的效果是比较明显的。
+(2) 分析一下为啥这样修改能够减少指令数以及消耗的时间。
+在程序里，有两处需要访问数组，一处是copy函数，一处在merge函数中。
+首先看看copy函数：
+改动前：
+```asm
+for (int i = 0 ; i < n ; i++) {
+    27ef:	test   %r15d,%r15d
+    27f2:	js     280e <merge_i+0x9e>  # 如果n - 1是负数则跳过
+    dest[i] = source[i];
+    27f4:	mov    0x8(%rsp),%rsi  # rsi = source 地址
+    27f9:	lea    0x4(,%r15,4),%rdx  # rdx = (n - 1) * 4 + 4 (计算总字节数)
+    2801:	add    0x18(%rsp),%rsi  
+    2806:	mov    %r13,%rdi # rdi  # rdi = dest
+    2809:	call   11f0 <memcpy@plt>  # 调用memcpy
+```
+改动后：
+```asm
+for (int i = 0 ; i < n ; i++) {
+    2bbb:	test   %r15d,%r15d
+    2bbe:	js     2bdd <merge_p+0x9d>  # 如果n - 1是负数则跳过
+    *dest_ptr = *source_ptr;
+    2bc0:	mov    %rcx,%rsi  # rsi = source 地址
+    2bc3:	lea    0x4(,%r15,4),%rdx  # rdx = (n - 1) * 4 + 4 (计算总字节数)
+    2bcb:	mov    %rbp,%rdi  # rdi = dest
+    2bce:	mov    %rcx,0x18(%rsp)
+    2bd3:	call   11f0 <memcpy@plt>  # 调用memcpy
+    2bd8:	mov    0x18(%rsp),%rcx
+```
+从上面两段汇编代码可以看出，其实更改数组的访问方式对实际的性能不会有任何影响，因为GCC在O3级别的优化下，已经直接把整个代码优化成一条memcpy的函数。
+
+再看看merge函数：
+改动前：
+```asm
+    if (left[i] <= right[j]) {
+    289f:	mov    0x0(%rbp,%rsi,4),%edx  # edx = left[i]
+    28a3:	mov    0x0(%r13,%rdi,4),%ecx  # ecx = right[j]
+    28a8:	cmp    %ecx,%edx
+    28aa:	jae    288d <merge_i+0x11d>
+      A[k] = left[i];
+    28ac:	mov    %edx,(%rax)  # A[k] = left[i] 
+```
+改动后：
+```asm
+if (*left_ptr <= *right_ptr) {
+    2c32:	mov    0x0(%rbp),%edx  # edx = *left_ptr
+    2c3b:	mov    0x0(%r13),%eax  # eax = *right_ptr
+    2c48:	cmp    %eax,%edx 
+    2c4a:	ja     2c61 <merge_p+0x121>
+      left_ptr++;
+    2c4c:	mov    %edx,(%rcx)  # *a_ptr = *left_ptr;
+    a_ptr++;
+    2c4e:	add    $0x4,%rcx
+      left_ptr++;
+    2c52:	add    $0x4,%rsi
+```
+从访问数组中元素的指令来看，索引版的在每次访问的时候，都需要按下标寻址，而指针版的，可以直接解引用，这里可以减少一些时间。
