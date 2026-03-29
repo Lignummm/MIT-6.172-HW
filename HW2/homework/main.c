@@ -48,7 +48,20 @@ static void run_test_suite(int start_idx, int printFlag, int N, int R,
 extern void sort_a(data_t*, int, int);
 extern void sort_i(data_t*, int, int);
 extern void sort_p(data_t*, int, int);
-extern void sort_c(data_t*, int, int);
+
+/* Different cutoff values */
+extern void sort_c_0(data_t*, int, int);
+extern void sort_c_1(data_t*, int, int);
+extern void sort_c_2(data_t*, int, int);
+extern void sort_c_3(data_t*, int, int);
+extern void sort_c_4(data_t*, int, int);
+
+/* Different sorting algorithms */
+extern void sort_c_insert(data_t*, int, int);
+extern void sort_c_select(data_t*, int, int);
+extern void sort_c_bubble(data_t*, int, int);
+extern void sort_c_shell(data_t*, int, int);
+
 extern void sort_m(data_t*, int, int);
 extern void sort_f(data_t*, int, int);
 
@@ -63,8 +76,21 @@ int main(int argc, char** argv) {
     // {&sort_a, "sort_a\t\t"},
     // {&sort_a, "sort_a repeated\t"},
     // {&sort_i, "sort_i\t\t"},
-    {&sort_p, "sort_p\t\t"},
-    //{&sort_c, "sort_c\t\t"},
+    // {&sort_p, "sort_p\t\t"},
+
+    /* Different cutoff values */
+    // {&sort_c_0, "sort_c_0\t\t"},
+    // {&sort_c_1, "sort_c_1\t\t"},
+    // {&sort_c_2, "sort_c_2\t\t"},
+    // {&sort_c_3, "sort_c_3\t\t"},
+    // {&sort_c_4, "sort_c_4\t\t"},
+
+    /* Different sorting algorithms */
+    {&sort_c_insert, "sort_c_insert\t\t"},
+    {&sort_c_select, "sort_c_select\t\t"},
+    {&sort_c_bubble, "sort_c_bubble\t\t"},
+    {&sort_c_shell, "sort_c_shell\t\t"},
+
     //{&sort_m, "sort_m\t\t"},
     //{&sort_f, "sort_f\t\t"},
   };

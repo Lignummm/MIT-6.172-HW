@@ -63,8 +63,8 @@ static void merge_p(data_t* A, int p, int q, int r) {
   right[n2] = UINT_MAX;
 
   data_t *a_ptr = A + p;
-  data_t *left_ptr = left + i;
-  data_t *right_ptr = right + j;
+  data_t *left_ptr = left;
+  data_t *right_ptr = right;
 
   for (int k = p; k <= r; k++) {
     if (*left_ptr <= *right_ptr) {

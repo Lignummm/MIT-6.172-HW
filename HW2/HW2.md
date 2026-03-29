@@ -192,46 +192,7 @@ Cachegrind 是 Valgrind 工具集里的**缓存和分支预测分析工具**，�
 ### 3.4 `sum`文件缓存命中分析
 #### 3.4.1 任务目标
 使用cachegrind分析sum.c程序的缓存性能，并尝试使用sum.c中的值N和U来减少缓存未命中的数量。
-
-#### 3.4.2 sum.c程序代码
-```C
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-
-typedef uint32_t data_t;
-const int U = 100000; // size of the array. 10 million vals ~= 40MB
-const int N = 100000; // number of searches to perform
-
-int main() {
-	data_t* data = (data_t*) malloc(U * sizeof(data_t));
-	if (data == NULL) {
-		free(data);
-		printf("Error: not enough memory\n");
-		exit(-1);
-	}
-
-	// fill up the array with sequential (sorted) values.
-	int i;
-	for (i = 0; i < U; i++) {
-		data[i] = i;
-	}
-
-	printf("Allocated array of size %d\n", U);
-	printf("Summing %d random values...\n", N);
-
-	data_t val = 0;
-	data_t seed = 42;
-	for (i = 0; i < N; i++) {
-		int l = rand_r(&seed) % U;
-		val = (val + data[l]);
-	}
-	free(data);
-	printf("Done. Value = %d\n", val);
-	return 0;
-}
-```
-#### 3.4.3 查看CPU各级缓存行信息
+#### 3.4.2 查看CPU各级缓存行信息
 (1) 查看CPU缓存大小
 命令：`lscpu`
 输出：
@@ -240,7 +201,7 @@ int main() {
 (2) 查看CPU缓存行大小
 命令：`getconf LEVEL2_DCACHE_LINESIZE`
 输出：`64`
-#### 3.4.4 Cache性能剖析
+#### 3.4.3 Cache性能剖析
 (1) 程序整体Cache性能剖析
 指令：`valgrind --tool=cachegrind --branch-sim=yes ./sum
 输出结果：
@@ -285,8 +246,8 @@ U = 100000, N = 100000
 要消除这里的读缓存，我们只需要把N设置成16以内的值，就能保证，data每次取到的值都是同一缓存行内的，结果如下所示：
 ![[截屏2026-03-22 15.53.19.png]]
 
-### 3.5 Homework：Sorting
-#### 3.5.1 Write-up 1
+## 4 Homework：Sorting
+### 4.1 Write-up 1
 ```
 Write-up 1: Compare the Cachegrind output on the DEBUG=1 code versus DEBUG=0 compiler
 optimized code. Explain the advantages and disadvantages of using instruction count as a
@@ -301,7 +262,7 @@ substitute for time when you compare the performance of different versions of th
 用指令数代替运行时间的优缺点：
 - 优点：指令数能够直接反馈编译器/代码优化的效果，不受缓存命中、分支预测等“硬件特性”影响，能够单纯衡量"代码逻辑的复杂度"。
 - 缺点：缓存失效次数、指令类型都会影响程序性能，单单从指令数来衡量性能，角度过于单一。
-#### 3.5.2 Inline
+### 4.2 Inline
 ```
 Write-up 2: Explain which functions you chose to inline and report the performance differences you observed between the inlined and uninlined sorting routines.
 
@@ -343,11 +304,10 @@ Write-up 3: Explain the possible performance downsides of inlining recursive fun
 (2) inline关键字，只是程序员给编译器的建议，编译器并不一定会采用，如果需要强制某个函数内联化，可以使用`__attribute__((always_inline))`关键字。
 (3) 每次优化尝试，都需要确认编译器按照我们的想法进行了内联，不然就会出现第一次优化尝试一样的结果，由于我对编译器的行为并不熟悉，所以我借助了[[https://godbolt.org]]该网站来帮助验证。
 
-#### 3.5.3 Pointers vs Arrays
+### 4.3 Pointers vs Arrays
 ```
 Write-up 4: Give a reason why using pointers may improve performance. Report on any performance differences you observed in your implementation.
 ```
-
 这节是想让我们从数组访问方式的角度进行优化，代码中原始的访问数组的方式是这样：
 `source[i] = dest[i]`，我们改成如下方式：
 ```C
@@ -420,3 +380,29 @@ if (*left_ptr <= *right_ptr) {
     2c52:	add    $0x4,%rsi
 ```
 从访问数组中元素的指令来看，索引版的在每次访问的时候，都需要按下标寻址，而指针版的，可以直接解引用，这里可以减少一些时间。
+
+### 4.4 Coarsening
+```
+Write-up 5: Explain what sorting algorithm you used and how you chose the number of elements to be sorted in the base case. Report on the performance differences you observed.
+```
+归并排序的实现过程中，会一直递归至最后一个元素才会停止，尝试去增加归并排序中的递归结束的颗粒度，并用其它排序算法对最后的小数据量进行排序。
+
+研究一下颗粒度对算法性能的影响，设置五组颗粒度大小：`0、40、80、120、160`，并用**插入排序**去对最后的小数据量进行排序。
+结果如下：
+![[截屏2026-03-29 15.49.09.png]]
+
+现象：有两组数据，第一组数据输入的数组是随机生成的，随着颗粒度增加，整体的性能是先上升后下降的趋势，证明增大颗粒度的策略是有效的，并且在`40-120`的区间内应该会有个最优解。第二组数据输入的数组是逆序的数组，同样也是随着颗粒度增加，整体的性能是先上升后下降，但是性能回弹的比较早，在`0-40`之间会有一个最优解。
+
+根据这个现象，主要想搞清楚两个问题：
+第一个问题：为什么随着递归结束条件的颗粒度增大，整体的性能是先上升后下降的。
+第二个问题：输入数组的排布为什么会影响最优解的值。
+
+分析：
+(1) 分析一下第一个问题，为了让现象更加明显，原因更好分析，首先看一下在颗粒度为`0、80、800`情况下perf数据。
+![[截屏2026-03-29 16.37.21.png|500]]
+![[截屏2026-03-29 16.23.37.png|500]]
+![[截屏2026-03-29 16.40.42.png|500]]
+从结果中可以看出来，随着颗粒度的增加，`instructions`、`clock`以及`branches`的值是先减少后增加。这表明混合排序策略在适当 cutoff 下能够通过减少递归与小规模 merge 带来的额外开销，降低整体执行工作量，从而提升性能；但当 cutoff 过大时，时间复杂度O(n2)的插入排序在较大子问题上的代价开始主导，导致性能回退。
+(2) 分析第二个问题，当输入的数组是逆序的时候，性能回弹的会比较早，原因在于如果输入的数组是逆序的，也就代表每个数都需要进行重新排序，随着输入的数组的大小增加，那么时间复杂度就会严格按照O(n2)快速增加，插入排序在分支和缓存方面的优势将会快速被指令数的增加压过，从而导致性能回弹。
+
+
