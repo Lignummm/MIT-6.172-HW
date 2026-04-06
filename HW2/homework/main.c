@@ -86,13 +86,13 @@ int main(int argc, char** argv) {
     // {&sort_c_4, "sort_c_4\t\t"},
 
     /* Different sorting algorithms */
-    {&sort_c_insert, "sort_c_insert\t\t"},
-    {&sort_c_select, "sort_c_select\t\t"},
-    {&sort_c_bubble, "sort_c_bubble\t\t"},
-    {&sort_c_shell, "sort_c_shell\t\t"},
+    // {&sort_c_insert, "sort_c_insert\t\t"},
+    // {&sort_c_select, "sort_c_select\t\t"},
+    // {&sort_c_bubble, "sort_c_bubble\t\t"},
+    // {&sort_c_shell, "sort_c_shell\t\t"},
 
-    //{&sort_m, "sort_m\t\t"},
-    //{&sort_f, "sort_f\t\t"},
+    {&sort_m, "sort_m\t\t"},
+    // {&sort_f, "sort_f\t\t"},
   };
   const int kNumOfFunc = sizeof(testFunc) / sizeof(testFunc[0]);
 

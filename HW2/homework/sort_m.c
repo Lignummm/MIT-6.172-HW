@@ -23,7 +23,89 @@
 
 #include "./util.h"
 
-void sort_m(data_t* A, int p, int r) {
-  printf("Unimplemented!\n");
+
+#define SORT_CUTOFF_80 80
+
+// Function prototypes
+static void merge_m(data_t* A, int p, int q, int r);
+static void copy_m(data_t* source, data_t* dest, int n);
+void sort_m(data_t* A, int p, int r);
+
+// Insertion sort, sorting the array between begin and end, inclusive
+static void inline isort(data_t* begin, data_t* end) {
+  data_t* cur = begin + 1;
+  while (cur <= end) {
+    data_t val = *cur;
+    data_t* index = cur - 1;
+
+    while (index >= begin && *index > val) {
+      *(index + 1) = *index;
+      index--;
+    }
+
+    *(index + 1) = val;
+    cur++;
+  }
 }
 
+void inline sort_m(data_t* A, int p, int r) {
+  assert(A);
+
+  if ((r - p) < SORT_CUTOFF_80) {
+    isort(A + p, A + r);
+  } else {
+    int q = (p + r) / 2;
+    sort_m(A, p, q);
+    sort_m(A, q + 1, r);
+    merge_m(A, p, q, r);
+  }
+}
+
+// A merge routine. Merges the sub-arrays A [p..q] and A [q + 1..r].
+static void merge_m(data_t* A, int p, int q, int r) {
+  assert(A);
+  assert(p <= q);
+  assert((q + 1) <= r);
+  int n1 = q - p + 1;
+
+  data_t* left = NULL;
+  mem_alloc(&left, n1); 
+  if (left == NULL) {
+    return;
+  }
+
+  copy_m(&(A[p]), left, n1);
+
+  data_t* lp = left;
+  data_t* le = left + n1;
+  data_t* rp = A + q + 1;
+  data_t* re = A + r + 1;
+  data_t* dst = A + p;
+
+  while (lp < le && rp < re) {
+    if (*lp <= *rp) {
+      *dst++ = *lp++;
+    } else {
+      *dst++ = *rp++;
+    }
+  }
+
+  while (lp < le) {
+    *dst++ = *lp++;
+  }
+
+  mem_free(&left);
+}
+
+static __attribute__((always_inline)) void copy_m(data_t* source, data_t* dest, int n) {
+  assert(dest);
+  assert(source);
+  data_t* source_ptr = source;
+  data_t* dest_ptr = dest;
+
+  for (int i = 0 ; i < n ; i++) {
+    *dest_ptr = *source_ptr;
+    source_ptr++;
+    dest_ptr++;
+  }
+}
